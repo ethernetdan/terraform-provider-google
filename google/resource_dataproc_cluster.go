@@ -335,6 +335,23 @@ func resourceDataprocCluster() *schema.Resource {
 								},
 							},
 						},
+						"endpoint_config": {
+							Type:     schema.TypeList,
+							Optional: true,
+							MaxItems: 1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"http_ports": {
+										Type:     schema.TypeMap,
+										Computed: true,
+									},
+									"enable_http_port_access": {
+										Type:     schema.TypeBool,
+										Required: true,
+									},
+								},
+							},
+						},
 					},
 				},
 			},
@@ -531,6 +548,10 @@ func expandClusterConfig(d *schema.ResourceData, config *Config) (*dataproc.Clus
 		conf.EncryptionConfig = expandEncryptionConfig(cfg)
 	}
 
+	if cfg, ok := configOptions(d, "cluster_config.0.endpoint_config"); ok {
+		conf.EndpointConfig = expandEndpointConfig(cfg)
+	}
+
 	if cfg, ok := configOptions(d, "cluster_config.0.master_config"); ok {
 		log.Println("[INFO] got master_config")
 		conf.MasterConfig = expandInstanceGroupConfig(cfg)
@@ -629,6 +650,14 @@ func expandEncryptionConfig(cfg map[string]interface{}) *dataproc.EncryptionConf
 	conf := &dataproc.EncryptionConfig{}
 	if v, ok := cfg["kms_key_name"]; ok {
 		conf.GcePdKmsKeyName = v.(string)
+	}
+	return conf
+}
+
+func expandEndpointConfig(cfg map[string]interface{}) *dataproc.EndpointConfig {
+	conf := &dataproc.EndpointConfig{}
+	if v, ok := cfg["enable_http_port_access"]; ok {
+		conf.EnableHttpPortAccess = v.(bool)
 	}
 	return conf
 }
@@ -842,6 +871,7 @@ func flattenClusterConfig(d *schema.ResourceData, cfg *dataproc.ClusterConfig) (
 		"worker_config":             flattenInstanceGroupConfig(d, cfg.WorkerConfig),
 		"preemptible_worker_config": flattenPreemptibleInstanceGroupConfig(d, cfg.SecondaryWorkerConfig),
 		"encryption_config":         flattenEncryptionConfig(d, cfg.EncryptionConfig),
+		"endpoint_config":           flattenEndpointConfig(d, cfg.EndpointConfig),
 	}
 
 	if len(cfg.InitializationActions) > 0 {
@@ -872,6 +902,19 @@ func flattenEncryptionConfig(d *schema.ResourceData, ec *dataproc.EncryptionConf
 
 	data := map[string]interface{}{
 		"kms_key_name": ec.GcePdKmsKeyName,
+	}
+
+	return []map[string]interface{}{data}
+}
+
+func flattenEndpointConfig(d *schema.ResourceData, ec *dataproc.EndpointConfig) []map[string]interface{} {
+	if ec == nil {
+		return nil
+	}
+
+	data := map[string]interface{}{
+		"http_ports":              ec.HttpPorts,
+		"enable_http_port_access": ec.EnableHttpPortAccess,
 	}
 
 	return []map[string]interface{}{data}

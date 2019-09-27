@@ -604,6 +604,27 @@ func TestAccDataprocCluster_KMS(t *testing.T) {
 	})
 }
 
+func TestAccDataprocCluster_Endpoints(t *testing.T) {
+	t.Parallel()
+
+	rnd := acctest.RandString(10)
+	var cluster dataproc.Cluster
+	resource.Test(t, resource.TestCase{
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckDataprocClusterDestroy(),
+		Steps: []resource.TestStep{
+			{
+				Config: testAccDataprocCluster_Endpoints(rnd),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckDataprocClusterExists("google_dataproc_cluster.with_endpoints", &cluster),
+					testAccCheckDataprocClusterHasEndpoints(&cluster),
+				),
+			},
+		},
+	})
+}
+
 func testAccCheckDataprocClusterDestroy() resource.TestCheckFunc {
 	return func(s *terraform.State) error {
 		config := testAccProvider.Meta().(*Config)
@@ -791,6 +812,18 @@ func testAccCheckDataprocClusterExists(n string, cluster *dataproc.Cluster) reso
 
 		*cluster = *found
 
+		return nil
+	}
+}
+
+func testAccCheckDataprocClusterHasEndpoints(cluster *dataproc.Cluster) func(s *terraform.State) error {
+	return func(s *terraform.State) error {
+
+		if !cluster.Config.EndpointConfig.EnableHttpPortAccess {
+			return fmt.Errorf("port access was not enabled: %v", cluster.Config.EndpointConfig)
+		} else if len(cluster.Config.EndpointConfig.HttpPorts) == 0 {
+			return fmt.Errorf("no endpoint ports were provided: %v", cluster.Config.EndpointConfig)
+		}
 		return nil
 	}
 }
@@ -1328,4 +1361,17 @@ resource "google_dataproc_cluster" "kms" {
 		}
 	}
 }`, pid, rnd, kmsKey)
+}
+
+func testAccDataprocCluster_Endpoints(rnd string) string {
+	return fmt.Sprintf(`
+resource "google_dataproc_cluster" "with_endpoints" {
+	name   = "dproc-cluster-test-%s"
+	region = "us-central1"
+	cluster_config {
+		endpoint_config {
+			enable_http_port_access = true
+		}
+	}
+}`, rnd)
 }
